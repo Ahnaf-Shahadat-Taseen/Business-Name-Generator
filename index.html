@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantastic Business Name Generator</title>
+    <!-- Load React and ReactDOM from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Load Babel for JSX transformation in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS CDN for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for body and root to ensure full page layout and centered content */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e2e8f0; /* Lighter background */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align items to the top */
+            min-height: 100vh;
+            color: #333;
+            overflow-x: hidden; /* Prevent horizontal scroll on small screens */
+        }
+        #root {
+            width: 100%;
+            max-width: 768px; /* Max width for content, good for responsiveness */
+            background-color: #ffffff;
+            border-radius: 1.5rem; /* More rounded corners */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); /* Stronger shadow */
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            animation: fadeIn 0.8s ease-out forwards; /* Fade in animation for the whole app */
+        }
+
+        /* Fade in animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Specific styles for loading spinner */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3); /* Lighter border */
+            border-left-color: #ffffff; /* White active part */
+            border-radius: 50%;
+            width: 24px; /* Slightly smaller */
+            height: 24px;
+            animation: spin 0.8s linear infinite; /* Faster spin */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Custom styles for select dropdown arrow */
+        .custom-select-arrow {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='m19.5 8.25-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.5em 1.5em;
+            -webkit-appearance: none; /* Remove default arrow on Webkit browsers */
+            -moz-appearance: none;    /* Remove default arrow on Firefox */
+            appearance: none;         /* Remove default arrow */
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Main App component for the Business Name Generator
+        function App() {
+            // State for user inputs
+            const [keywords, setKeywords] = React.useState('');
+            const [industry, setIndustry] = React.useState('');
+            const [style, setStyle] = React.useState('modern'); // Default style
+            // State for generated names and loading status
+            const [names, setNames] = React.useState([]);
+            const [isLoading, setIsLoading] = React.useState(false);
+            const [error, setError] = React.useState('');
+
+            // Function to generate business names using Gemini API
+            const generateNames = async () => {
+                // Basic validation for inputs
+                if (!keywords.trim() && !industry.trim()) {
+                    setError('Please provide at least keywords or an industry to generate names.');
+                    return;
+                }
+
+                setIsLoading(true); // Set loading state to true
+                setError(''); // Clear previous errors
+                setNames([]); // Clear previous names
+
+                // Construct a detailed prompt for the AI model
+                const prompt = `Generate 10 fantastic, unique, and memorable business names based on the following criteria:
+                Keywords: "${keywords.trim()}"
+                Industry: "${industry.trim()}"
+                Style/Tone: "${style}"
+
+                Please provide only the names, one per line, without any introductory or concluding text, numbers, or bullet points. Avoid names that are too generic or too similar to common brands. Focus on creativity and relevance.`;
+
+                try {
+                    // API configuration
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    const apiKey = ""; // Leave this empty, Canvas will provide it at runtime
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                    // Fetch call to the Gemini API
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    // Check for HTTP errors
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API error: ${response.status} - ${errorData.error.message || response.statusText}`);
+                    }
+
+                    const result = await response.json();
+
+                    // Check if the response contains generated content
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        // Split the generated text into individual names, clean them, and filter empty ones
+                        const generatedNames = text.split('\n')
+                                                   .map(name => name.trim().replace(/^[*-]\s*/, '')) // Remove common list prefixes
+                                                   .filter(name => name.length > 0 && name.toLowerCase() !== "n/a" && name.toLowerCase() !== "none"); // Further filter
+                        if (generatedNames.length > 0) {
+                            setNames(generatedNames); // Update state with generated names
+                        } else {
+                            setError('The AI generated an empty or irrelevant response. Please try different inputs.');
+                        }
+                    } else {
+                        setError('No names generated. The AI did not return a valid response. Please try again with different inputs.');
+                    }
+                } catch (err) {
+                    console.error('Error generating names:', err);
+                    setError(`Failed to generate names: ${err.message}. This might be due to network issues or invalid API key configuration (if running outside Canvas). Please try again.`);
+                } finally {
+                    setIsLoading(false); // End loading state
+                }
+            };
+
+            return (
+                <div className="flex flex-col gap-6 p-6 md:p-8 w-full">
+                    <h1 className="text-4xl sm:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-700 to-pink-500 pb-2">
+                        Business Name Generator
+                    </h1>
+                    <p className="text-center text-lg text-gray-600 mb-4">
+                        Unlock creative and unique names for your next big venture!
+                    </p>
+
+                    <div className="flex flex-col gap-5 bg-gradient-to-br from-purple-50 to-indigo-50 p-7 rounded-3xl shadow-xl border border-purple-100">
+                        <label className="text-lg font-semibold text-purple-800">
+                            Keywords:
+                            <input
+                                type="text"
+                                className="mt-2 p-3 w-full border border-purple-300 rounded-xl focus:ring-4 focus:ring-purple-400 focus:border-purple-600 outline-none transition-all duration-300 shadow-md placeholder-gray-400"
+                                placeholder="e.g., eco, smart, swift, bloom"
+                                value={keywords}
+                                onChange={(e) => setKeywords(e.target.value)}
+                            />
+                        </label>
+
+                        <label className="text-lg font-semibold text-purple-800">
+                            Industry/Niche:
+                            <input
+                                type="text"
+                                className="mt-2 p-3 w-full border border-purple-300 rounded-xl focus:ring-4 focus:ring-purple-400 focus:border-purple-600 outline-none transition-all duration-300 shadow-md placeholder-gray-400"
+                                placeholder="e.g., sustainable tech, flower shop, logistics, personal finance"
+                                value={industry}
+                                onChange={(e) => setIndustry(e.target.value)}
+                            />
+                        </label>
+
+                        <label className="text-lg font-semibold text-purple-800">
+                            Desired Style/Tone:
+                            <select
+                                className="mt-2 p-3 w-full border border-purple-300 rounded-xl bg-white focus:ring-4 focus:ring-purple-400 focus:border-purple-600 outline-none transition-all duration-300 shadow-md appearance-none pr-8 custom-select-arrow"
+                                value={style}
+                                onChange={(e) => setStyle(e.target.value)}
+                            >
+                                <option value="modern">Modern & Sleek</option>
+                                <option value="creative">Creative & Playful</option>
+                                <option value="professional">Professional & Trustworthy</option>
+                                <option value="catchy">Catchy & Memorable</option>
+                                <option value="luxury">Luxury & Premium</option>
+                                <option value="tech">Tech & Innovative</option>
+                                <option value="eco-friendly">Eco-friendly & Natural</option>
+                                <option value="bold">Bold & Strong</option>
+                                <option value="minimalist">Minimalist</option>
+                                <option value="elegant">Elegant & Sophisticated</option>
+                            </select>
+                        </label>
+
+                        <button
+                            onClick={generateNames}
+                            disabled={isLoading}
+                            className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-700 text-white font-bold text-lg rounded-xl shadow-2xl hover:from-purple-700 hover:to-indigo-800 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed border-b-4 border-purple-800 active:border-b-0 active:translate-y-1"
+                        >
+                            {isLoading ? (
+                                <>
+                                    <div className="spinner"></div>
+                                    <span>Generating...</span>
+                                </>
+                            ) : (
+                                'Generate Fantastic Names'
+                            )}
+                        </button>
+                    </div>
+
+                    {error && (
+                        <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-xl relative shadow-md animate-bounce-in" role="alert">
+                            <strong className="font-bold">Oops!</strong>
+                            <span className="block sm:inline ml-2">{error}</span>
+                        </div>
+                    )}
+
+                    {names.length > 0 && (
+                        <div className="bg-gradient-to-br from-green-50 to-blue-50 p-7 rounded-3xl shadow-xl border border-green-200 animate-slide-up">
+                            <h2 className="text-2xl font-bold mb-4 text-green-800 text-center border-b-2 border-green-300 pb-2">Suggested Names:</h2>
+                            <ul className="list-none pl-0 space-y-3 text-lg text-green-700">
+                                {names.map((name, index) => (
+                                    <li key={index} className="bg-green-100 p-4 rounded-xl shadow-sm hover:bg-green-200 transition-all duration-200 flex items-center justify-between transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer">
+                                        <span className="font-medium text-purple-900">{name}</span>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(name)
+                                                    .then(() => alert(`'${name}' copied to clipboard!`))
+                                                    .catch(() => alert('Failed to copy name.'));
+                                            }}
+                                            className="ml-4 px-4 py-2 bg-purple-500 text-white text-base rounded-lg hover:bg-purple-600 transition-all duration-200 shadow-md active:scale-95"
+                                        >
+                                            Copy
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Render the App component into the 'root' div
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
